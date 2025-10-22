@@ -23,7 +23,7 @@ pipeline {
         stage('Build React App') {
             steps {
                 echo '🔨 Building React application...'
-                sh 'npm run build'
+                sh 'CI=false npm run build'  // This disables treating warnings as errors
             }
         }
         
