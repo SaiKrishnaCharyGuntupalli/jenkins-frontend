@@ -10,10 +10,10 @@ function Welcome() {
   // 1. Call FastAPI GET endpoint on page load
   useEffect(() => {
     // fetch(`${API_BASE}`) // <-- FastAPI backend running
-    // fetch(`http://127.0.0.1:8000`) // <-- FastAPI backend running
+    fetch(`http://127.0.0.1:8000`) // <-- FastAPI backend running
     // fetch(`http://13.127.203.26:8000`) // <-- FastAPI backend running
     // fetch(`https://new_project.com/api/`) // <-- FastAPI backend running
-    fetch(`https://fastapiec.vidyayug.com/api/`) // <-- FastAPI backend running
+    // fetch(`https://fastapiec.vidyayug.com/api/`) // <-- FastAPI backend running
       .then((res) => res.json())
       .then((data) => setInitialMessage(data.message))
       .catch((err) => console.error("Error fetching:", err));
@@ -24,10 +24,10 @@ function Welcome() {
     e.preventDefault();
     try {
       // const res = await fetch(`${API_BASE}/welcome`, {
-      // const res = await fetch(`http://127.0.0.1:8000/welcome`, {   //with local ip address
+      const res = await fetch(`http://127.0.0.1:8000/welcome`, {   //with local ip address
       // const res = await fetch(`http://13.127.203.26:8000/welcome`, {  //with public ip address
       // const res = await fetch(`https://new_project.com/api/welcome`, {  //with domain pointing to ip address by self signed
-      const res = await fetch(`https://fastapiec.vidyayug.com/api/welcome`, {  //with real domain pointing to ip address 
+      // const res = await fetch(`https://fastapiec.vidyayug.com/api/welcome`, {  //with real domain pointing to ip address 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
