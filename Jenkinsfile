@@ -1,56 +1,96 @@
 pipeline {
-    agent any
+    agent none
     
-    tools {
-        nodejs "NodeJS-18"
+    environment {
+        BUILD_DIR = '/var/www/react-app'
     }
     
     stages {
         stage('Checkout') {
+            agent { label 'ec2-production' }
             steps {
-                echo 'Checking out code on local machine...'
+                echo '📥 Checking out React code from GitHub...'
                 checkout scm
             }
         }
         
         stage('Install Dependencies') {
+            agent { label 'ec2-production' }
             steps {
-                echo '📦 Installing npm packages...'
-                sh 'npm install'
+                echo '📦 Installing npm dependencies...'
+                sh '''
+                    # Clean install
+                    rm -rf node_modules package-lock.json
+                    npm install
+                '''
             }
         }
         
         stage('Build React App') {
+            agent { label 'ec2-production' }
             steps {
-                echo '🔨 Building React application...'
-                sh 'CI=false npm run build'  // This disables treating warnings as errors
-            }
-        }
-        
-        stage('Build Docker Image') {
-            steps {
-                echo 'Building Docker image...'
-                sh 'docker build -t react-frontend .'
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                echo 'Deploying React container...'
+                echo '🔨 Building React production build...'
                 sh '''
-                    # Stop and remove old container
-                    docker stop react-app || true
-                    docker rm react-app || true
+                    # Build for production
+                    npm run build
                     
-                    # Run new container
-                    docker run -d -p 3000:3000 --name react-app react-frontend
+                    # Check if build was successful
+                    if [ ! -d "build" ]; then
+                        echo "❌ Build directory not found!"
+                        exit 1
+                    fi
                     
-                    # Wait and verify
-                    sleep 5
-                    docker ps | grep react-app
+                    echo "✅ Build completed successfully"
+                    ls -la build/
+                '''
+            }
+        }
+        
+        stage('Deploy to Nginx') {
+            agent { label 'ec2-production' }
+            steps {
+                echo '🚀 Deploying to Nginx...'
+                sh '''
+                    # Backup existing deployment (optional)
+                    if [ -d "${BUILD_DIR}" ]; then
+                        sudo rm -rf ${BUILD_DIR}.backup
+                        sudo cp -r ${BUILD_DIR} ${BUILD_DIR}.backup || true
+                    fi
                     
-                    # Test the app from within the container network
-                    docker exec react-app curl -f http://localhost:3000 || exit 1
+                    # Clear old deployment
+                    sudo rm -rf ${BUILD_DIR}/*
+                    
+                    # Copy new build files
+                    sudo cp -r build/* ${BUILD_DIR}/
+                    
+                    # Set correct permissions
+                    sudo chown -R www-data:www-data ${BUILD_DIR}
+                    sudo chmod -R 755 ${BUILD_DIR}
+                    
+                    # Reload Nginx
+                    sudo systemctl reload nginx
+                    
+                    echo "✅ Deployment completed!"
+                '''
+            }
+        }
+        
+        stage('Health Check') {
+            agent { label 'ec2-production' }
+            steps {
+                echo '🏥 Checking deployment health...'
+                sh '''
+                    sleep 2
+                    
+                    # Check if Nginx is serving the app
+                    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost)
+                    
+                    if [ "$HTTP_CODE" = "200" ]; then
+                        echo "✅ React app is accessible (HTTP $HTTP_CODE)"
+                    else
+                        echo "❌ React app is not accessible (HTTP $HTTP_CODE)"
+                        exit 1
+                    fi
                 '''
             }
         }
@@ -59,12 +99,16 @@ pipeline {
     post {
         success {
             echo '✅ Pipeline completed successfully!'
-            echo '🚀 React app running: http://localhost:3000'
-            echo '🔗 Backend API: http://localhost:8000'
+            echo '🌐 React App: http://65.0.124.193'
+            echo '🔗 FastAPI Backend: http://65.0.124.193:8000'
+            echo '📖 API Docs: http://65.0.124.193:8000/docs'
         }
         failure {
             echo '❌ Pipeline failed!'
-            sh 'docker logs react-app || true'
+            echo '🔍 Check logs: sudo journalctl -u nginx -n 50'
+        }
+        always {
+            echo '📊 Build finished at: ' + new Date().toString()
         }
     }
 }
